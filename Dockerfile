@@ -37,3 +37,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "server.js"]
+
+#docker build -t land007/image-to-svg:latest .
