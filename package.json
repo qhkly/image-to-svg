@@ -5,15 +5,22 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "cli": "node cli.js"
+    "cli": "node cli.js",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "@neplex/vectorizer": "^0.0.5",
+    "@tauri-apps/plugin-dialog": "^2",
     "express": "^5.1.0",
     "minimist": "^1.2.8",
     "multer": "^2.1.1",
     "potrace": "^2.1.8",
     "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
   },
   "engines": {
     "node": ">=18"
