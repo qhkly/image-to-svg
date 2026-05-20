@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>image-to-svg</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --font: 'Courier New', Courier, monospace;
+  --bg: #f5f5f0;
+  --panel: #fff;
+  --border: #ccc;
+  --accent: #111;
+  --muted: #666;
+  --ok: #2a7a2a;
+  --err: #b00020;
+  --warn: #7a5500;
+  --hover: #e8e8e0;
+  --radius: 4px;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--accent);
+  font-size: 13px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  padding: 16px 24px;
+  border-bottom: 2px solid var(--accent);
+  background: var(--panel);
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+header h1 { font-size: 18px; letter-spacing: -0.5px; }
+header p { color: var(--muted); font-size: 12px; }
+
+main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 0;
+  min-height: 0;
+}
+
+/* ── LEFT PANEL ── */
+#controls {
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#dropzone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 28px 16px;
+  text-align: center;
+  cursor: pointer;
+  color: var(--muted);
+  line-height: 1.5;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+}
+#dropzone:hover, #dropzone.dragover {
+  border-color: var(--accent);
+  background: var(--hover);
+  color: var(--accent);
+}
+#dropzone .hint { font-size: 11px; margin-top: 4px; }
+
+#preview-original img {
+  max-width: 100%;
+  max-height: 140px;
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  object-fit: contain;
+  background: #fff;
+}
+
+.field-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+select, input[type="range"] {
+  width: 100%;
+  font-family: var(--font);
+  font-size: 13px;
+}
+
+select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  cursor: pointer;
+}
+
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.range-row input[type="range"] { flex: 1; }
+.range-val {
+  width: 28px;
+  text-align: right;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.param-group { display: flex; flex-direction: column; gap: 10px; }
+.param-group.hidden { display: none; }
+
+button {
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 9px 20px;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+#convertBtn {
+  background: var(--accent);
+  color: #fff;
+  width: 100%;
+}
+#convertBtn:disabled {
+  background: var(--border);
+  border-color: var(--border);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+#convertBtn:not(:disabled):hover { background: #333; }
+
+#status {
+  font-size: 12px;
+  color: var(--muted);
+  min-height: 18px;
+  text-align: center;
+}
+#status.error { color: var(--err); }
+
+/* ── RIGHT PANEL ── */
+#output {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  min-height: 0;
+}
+
+#output-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  flex-wrap: wrap;
+}
+
+#output-toolbar #downloadBtn {
+  background: var(--panel);
+  color: var(--accent);
+  padding: 5px 14px;
+  font-size: 12px;
+}
+#output-toolbar #downloadBtn:disabled {
+  color: var(--muted);
+  border-color: var(--border);
+  cursor: not-allowed;
+}
+#output-toolbar #downloadBtn:not(:disabled):hover { background: var(--hover); }
+
+#bytesize { font-size: 12px; color: var(--muted); }
+
+#validation-result {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex: 1;
+  align-items: center;
+}
+
+.vcheck {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  display: none;
+}
+.vcheck.ok  { background: #e6f4e6; color: var(--ok);  display: inline-block; }
+.vcheck.err { background: #fde8e8; color: var(--err); display: inline-block; }
+
+#svg-viewport {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+#svg-container {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-width: 200px;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+#svg-container svg {
+  max-width: 100%;
+  max-height: 70vh;
+  display: block;
+}
+
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #ccc;
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* checklist in controls */
+.checks-label { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>image-to-svg</h1>
+  <p>PNG / JPG / WebP → real vector SVG path (VTracer + Potrace)</p>
+</header>
+
+<main>
+  <!-- LEFT: Controls -->
+  <section id="controls">
+
+    <div id="dropzone" tabindex="0" role="button" aria-label="Upload image">
+      Drop image here<br>or click to select
+      <div class="hint">PNG · JPG · WebP · max 20 MB</div>
+      <input type="file" id="fileInput" accept=".png,.jpg,.jpeg,.webp" style="display:none">
+    </div>
+
+    <div id="preview-original"></div>
+
+    <!-- Mode -->
+    <div>
+      <div class="field-label">Mode</div>
+      <select id="mode">
+        <option value="color">color — multi-color (VTracer)</option>
+        <option value="monochrome">monochrome — silhouette (Potrace)</option>
+      </select>
+    </div>
+
+    <!-- Color params -->
+    <div class="param-group" id="color-params">
+      <div>
+        <div class="field-label">Colors precision (1–8)</div>
+        <div class="range-row">
+          <input type="range" id="colors" min="1" max="8" value="6">
+          <span class="range-val" id="colors-val">6</span>
+        </div>
+      </div>
+      <div>
+        <div class="field-label">Filter speckle (0–20)</div>
+        <div class="range-row">
+          <input type="range" id="filterSpeckle" min="0" max="20" value="4">
+          <span class="range-val" id="speckle-val">4</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mono params -->
+    <div class="param-group hidden" id="mono-params">
+      <div>
+        <div class="field-label">Threshold (0 = auto, 1–255)</div>
+        <div class="range-row">
+          <input type="range" id="threshold" min="0" max="255" value="0">
+          <span class="range-val" id="threshold-val">auto</span>
+        </div>
+      </div>
+    </div>
+
+    <button id="convertBtn" disabled>Convert</button>
+
+    <div id="status"></div>
+
+  </section>
+
+  <!-- RIGHT: Output -->
+  <section id="output">
+    <div id="output-toolbar">
+      <button id="downloadBtn" disabled>⬇ Download SVG</button>
+      <span id="bytesize"></span>
+      <div id="validation-result">
+        <span class="vcheck" id="vcheck-path">✓ has &lt;path&gt;</span>
+        <span class="vcheck" id="vcheck-viewbox">✓ has viewBox</span>
+        <span class="vcheck" id="vcheck-nobase64">✓ no base64</span>
+        <span class="vcheck" id="vcheck-noimage">✓ no &lt;image&gt;</span>
+      </div>
+    </div>
+    <div id="svg-viewport">
+      <div id="svg-container">
+        Upload an image and click Convert<br>to see the SVG preview here
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── State ──
+  let currentFile = null;
+  let currentSVG = null;
+
+  // ── DOM refs ──
+  const dropzone     = document.getElementById('dropzone');
+  const fileInput    = document.getElementById('fileInput');
+  const previewOrig  = document.getElementById('preview-original');
+  const modeSelect   = document.getElementById('mode');
+  const colorParams  = document.getElementById('color-params');
+  const monoParams   = document.getElementById('mono-params');
+  const colorsRange  = document.getElementById('colors');
+  const colorsVal    = document.getElementById('colors-val');
+  const speckleRange = document.getElementById('filterSpeckle');
+  const speckleVal   = document.getElementById('speckle-val');
+  const threshRange  = document.getElementById('threshold');
+  const threshVal    = document.getElementById('threshold-val');
+  const convertBtn   = document.getElementById('convertBtn');
+  const statusDiv    = document.getElementById('status');
+  const svgContainer = document.getElementById('svg-container');
+  const downloadBtn  = document.getElementById('downloadBtn');
+  const bytesizeEl   = document.getElementById('bytesize');
+
+  const vchecks = {
+    path:     document.getElementById('vcheck-path'),
+    viewbox:  document.getElementById('vcheck-viewbox'),
+    nobase64: document.getElementById('vcheck-nobase64'),
+    noimage:  document.getElementById('vcheck-noimage'),
+  };
+
+  // ── Upload / drag & drop ──
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) handleFile(fileInput.files[0]);
+  });
+
+  function handleFile(file) {
+    const allowed = ['image/png', 'image/jpeg', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      setStatus('Unsupported format. Use PNG, JPG, or WebP.', true);
+      return;
+    }
+    currentFile = file;
+    convertBtn.disabled = false;
+    setStatus('');
+    resetOutput();
+
+    // thumbnail
+    const reader = new FileReader();
+    reader.onload = e => {
+      previewOrig.innerHTML = `<img src="${e.target.result}" alt="original">`;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // ── Mode toggle ──
+  modeSelect.addEventListener('change', () => {
+    const isMono = modeSelect.value === 'monochrome';
+    colorParams.classList.toggle('hidden', isMono);
+    monoParams.classList.toggle('hidden', !isMono);
+  });
+
+  // ── Range sliders ──
+  colorsRange.addEventListener('input', () => { colorsVal.textContent = colorsRange.value; });
+  speckleRange.addEventListener('input', () => { speckleVal.textContent = speckleRange.value; });
+  threshRange.addEventListener('input', () => {
+    threshVal.textContent = threshRange.value === '0' ? 'auto' : threshRange.value;
+  });
+
+  // ── Convert ──
+  convertBtn.addEventListener('click', async () => {
+    if (!currentFile) return;
+    convertBtn.disabled = true;
+    setStatus('<span class="spinner"></span>Converting…');
+    resetOutput();
+
+    try {
+      const data = await doConvert();
+      currentSVG = data.svg;
+      renderSVG(data.svg);
+      renderValidation(data.validation);
+      const kb = (data.byteSize / 1024).toFixed(1);
+      bytesizeEl.textContent = `${kb} KB`;
+      downloadBtn.disabled = false;
+      setStatus('');
+    } catch (err) {
+      setStatus(err.message, true);
+    } finally {
+      convertBtn.disabled = false;
+    }
+  });
+
+  async function doConvert() {
+    const fd = new FormData();
+    fd.append('image', currentFile);
+    fd.append('mode', modeSelect.value);
+    fd.append('colors', colorsRange.value);
+    const tv = threshRange.value;
+    fd.append('threshold', tv === '0' ? 'auto' : tv);
+    fd.append('filterSpeckle', speckleRange.value);
+
+    const res = await fetch('/api/vectorize', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  }
+
+  function renderSVG(svg) {
+    // Inject SVG string directly — content comes from our own server, not user-supplied
+    svgContainer.innerHTML = svg;
+  }
+
+  function renderValidation(v) {
+    // Map validation errors to which check they belong
+    const errSet = new Set(v.errors.map(e => e.toLowerCase()));
+
+    const checks = {
+      path:     !errSet.has('missing <path> elements'),
+      viewbox:  !errSet.has('missing viewbox attribute'),
+      nobase64: !errSet.has('contains base64 encoded data'),
+      noimage:  !errSet.has('contains <image> element (not a true vector)'),
+    };
+
+    const labels = {
+      path:     ['✓ has &lt;path&gt;', '✗ missing &lt;path&gt;'],
+      viewbox:  ['✓ viewBox', '✗ no viewBox'],
+      nobase64: ['✓ no base64', '✗ has base64'],
+      noimage:  ['✓ no &lt;image&gt;', '✗ has &lt;image&gt;'],
+    };
+
+    for (const [key, el] of Object.entries(vchecks)) {
+      const ok = checks[key];
+      el.className = `vcheck ${ok ? 'ok' : 'err'}`;
+      el.innerHTML = labels[key][ok ? 0 : 1];
+    }
+  }
+
+  function resetOutput() {
+    currentSVG = null;
+    downloadBtn.disabled = true;
+    bytesizeEl.textContent = '';
+    svgContainer.innerHTML = 'Converting…';
+    for (const el of Object.values(vchecks)) {
+      el.className = 'vcheck';
+    }
+  }
+
+  function setStatus(msg, isError = false) {
+    statusDiv.innerHTML = msg;
+    statusDiv.className = isError ? 'error' : '';
+  }
+
+  // ── Download ──
+  downloadBtn.addEventListener('click', () => {
+    if (!currentSVG) return;
+    const blob = new Blob([currentSVG], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const baseName = currentFile ? currentFile.name.replace(/\.[^.]+$/, '') : 'output';
+    a.href = url;
+    a.download = `${baseName}.svg`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "image-to-svg",
+  "version": "1.0.0",
+  "description": "Convert PNG/JPG/WebP to real vector SVG using VTracer and Potrace",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "cli": "node cli.js"
+  },
+  "dependencies": {
+    "@neplex/vectorizer": "^0.0.5",
+    "express": "^5.1.0",
+    "minimist": "^1.2.8",
+    "multer": "^2.1.1",
+    "potrace": "^2.1.8",
+    "sharp": "^0.34.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
