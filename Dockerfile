@@ -1,14 +1,20 @@
-# ── Build stage: install dependencies on Linux (fetches correct native binaries) ──
-FROM node:20-alpine AS builder
+# ── Build stage: run npm on native build platform to avoid QEMU SIGILL crash ──
+FROM --platform=$BUILDPLATFORM node:20-alpine AS builder
+
+ARG TARGETARCH
 
 WORKDIR /app
 
 COPY package.json ./
 
-# npm install resolves platform-specific binaries:
-#   @neplex/vectorizer-linux-x64-musl or -linux-arm64-musl (Alpine/musl)
-#   sharp prebuilt Linux binary via @img/sharp-linux-x64 or -arm64
-RUN npm install --omit=dev
+# npm_config_arch tells sharp/@neplex/vectorizer which prebuilt binary to fetch.
+# Running on $BUILDPLATFORM (amd64) avoids QEMU; the correct target binaries are
+# still downloaded because npm_config_arch overrides the host CPU detection.
+RUN ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "x64" || echo "arm64") && \
+    npm_config_platform=linux \
+    npm_config_arch=$ARCH \
+    npm_config_libc=musl \
+    npm install --omit=dev
 
 # ── Runtime stage ──
 FROM node:20-alpine
